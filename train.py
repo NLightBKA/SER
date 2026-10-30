@@ -8,6 +8,7 @@ Output is saved to: output/attempt_NN/model and output/attempt_NN/log.json
 """
 
 from datetime import datetime
+from pathlib import Path
 
 from datasets import Dataset
 from sentence_transformers import SentenceTransformer
@@ -26,13 +27,19 @@ BATCH_SIZE   = 8
 LR           = 2e-5
 WARMUP_RATIO = 0.1
 
+
 def post_to_text(post: dict) -> str:
     comments = " ".join(post.get("comments", []))
     return f"{post['title']}. {post['body']} {comments}".strip()
 
+
 class StepLogger(TrainerCallback):
-    def __init__(self):
+    def __init__(self, attempt_dir: Path, meta_info: dict):
+        self.attempt_dir = attempt_dir
+        self.meta_info   = meta_info
         self.entries: list[dict] = []
+        # Khởi tạo file log.json ngay lập tức với metadata
+        self.flush()
 
     def on_log(
         self,
@@ -42,17 +49,45 @@ class StepLogger(TrainerCallback):
         logs: dict = None,
         **kwargs,
     ):
-        if logs and "loss" in logs:
-            entry = {
-                "step":  state.global_step,
-                "epoch": round(state.epoch, 3) if state.epoch is not None else None,
-                "loss":  round(logs["loss"], 6),
-            }
-            self.entries.append(entry)
-            print(f"  step {entry['step']:>4} | epoch {entry['epoch']} | loss {entry['loss']:.6f}")
+        if not logs:
+            return
+
+        entry = {
+            "step":  state.global_step,
+            "epoch": round(state.epoch, 3) if state.epoch is not None else None,
+        }
+        if "loss" in logs:
+            entry["loss"] = round(logs["loss"], 6)
+        if "eval_loss" in logs:
+            entry["eval_loss"] = round(logs["eval_loss"], 6)
+        if "learning_rate" in logs:
+            entry["learning_rate"] = logs["learning_rate"]
+
+        self.entries.append(entry)
+
+        # In thông tin ra terminal
+        display_parts = [f"  step {entry['step']:>4}"]
+        if entry.get("epoch") is not None:
+            display_parts.append(f"epoch {entry['epoch']}")
+        if "loss" in entry:
+            display_parts.append(f"loss {entry['loss']:.6f}")
+        if "eval_loss" in entry:
+            display_parts.append(f"eval_loss {entry['eval_loss']:.6f}")
+        print(" | ".join(display_parts))
+
+        # Cập nhật thời gian thực vào file log.json
+        self.flush()
+
+    def flush(self):
+        log_data = {
+            **self.meta_info,
+            "training_steps": self.entries,
+        }
+        save_log(self.attempt_dir, log_data)
+
 
 def train():
-    #prepare data and dir
+    #prepare dir
     prev = list_attempts()
     if prev:
         print("Existing attempts:")
@@ -69,6 +104,7 @@ def train():
     print(f"  Time    : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*52}\n")
 
+    #prepare data
     data       = get_data_for_model()
     tag_counts = get_tag_counts(data)
     n_posts    = len(data)
@@ -89,7 +125,7 @@ def train():
     print(f"Score range    : [{min(score_vals):.3f}, {max(score_vals):.3f}]")
     print(f"Non-zero pairs : {sum(1 for s in score_vals if s > 0)}\n")
 
-    #model setting
+    #initialize model and loss
     print(f"Loading model  : {BASE_MODEL}")
     model = SentenceTransformer(BASE_MODEL)
     loss  = CosineSimilarityLoss(model)
@@ -101,27 +137,13 @@ def train():
         learning_rate=LR,
         warmup_ratio=WARMUP_RATIO,
         logging_steps=1,
-        save_strategy="no",
+        save_strategy="epoch",
+        save_total_limit=2,
         fp16=False,
         report_to="none",
     )
 
-    logger  = StepLogger()
-    trainer = SentenceTransformerTrainer(
-        model=model,
-        args=training_args,
-        train_dataset=dataset,
-        loss=loss,
-        callbacks=[logger],
-    )
-    #train
-    print("Training...\n")
-    trainer.train()
-
-    model.save(str(model_dir))
-    print(f"\nModel saved : {model_dir}")
-
-    log_data = {
+    meta_info = {
         "attempt":        attempt_dir.name,
         "timestamp":      datetime.now().isoformat(),
         "base_model":     BASE_MODEL,
@@ -132,10 +154,30 @@ def train():
         "n_posts":        n_posts,
         "n_pairs":        len(pairs),
         "tag_counts":     tag_counts,
-        "training_steps": logger.entries,
     }
-    log_path = save_log(attempt_dir, log_data)
-    print(f"Log saved   : {log_path}\n")
+
+    logger = StepLogger(attempt_dir, meta_info)
+    print(f"Log initialized: {attempt_dir / 'log.json'}\n")
+
+    trainer = SentenceTransformerTrainer(
+        model=model,
+        args=training_args,
+        train_dataset=dataset,
+        loss=loss,
+        callbacks=[logger],
+    )
+
+    #train
+    try:
+        print("Training...\n")
+        trainer.train()
+    except KeyboardInterrupt:
+        print("\nTraining Interuppted. Saving current state...")
+    finally:
+        model.save(str(model_dir))
+        print(f"\nModel saved : {model_dir}")
+        logger.flush()
+        print(f"Log saved   : {attempt_dir / 'log.json'}\n")
 
 
 if __name__ == "__main__":
