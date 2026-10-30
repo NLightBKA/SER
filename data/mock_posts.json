@@ -1,0 +1,743 @@
+[
+  {
+    "title": "RuntimeError: Event loop is closed when running asyncio in Python 3.10+",
+    "body": "I am using `asyncio.run()` in a script with Windows ProactorEventLoop and aiohttp. When the script exits, it throws `RuntimeError: Event loop is closed` during SSL connection cleanup. How can I cleanly close client sessions before loop termination?",
+    "comments": [
+      "Make sure to await client_session.close() and give asyncio.sleep(0.25) for underlying SSL transports to finish.",
+      "This is a known bug in aiohttp on Windows with Python 3.10+. Wrapping session shutdown in a dedicated cleanup async function fixes it.",
+      "You can also suppress the exception in WindowsSelectorEventLoopPolicy if you change the event loop policy at startup."
+    ],
+    "tags": [
+      "python",
+      "asyncio",
+      "aiohttp",
+      "concurrency"
+    ]
+  },
+  {
+    "title": "Difference between asyncio.gather, asyncio.wait, and TaskGroup in Python",
+    "body": "I have multiple asynchronous I/O tasks. What are the key differences between `asyncio.gather()`, `asyncio.wait()`, and Python 3.11's `asyncio.TaskGroup`? Especially in terms of exception propagation and cancellation semantics.",
+    "comments": [
+      "TaskGroup provides structured concurrency: if one task fails, remaining tasks are automatically cancelled and grouped into ExceptionGroup.",
+      "gather() returns results in order, but doesn't cancel sibling tasks by default when one raises an exception unless return_exceptions=True.",
+      "Use TaskGroup for new code in Python 3.11+. It prevents orphaned tasks."
+    ],
+    "tags": [
+      "python",
+      "asyncio",
+      "concurrency"
+    ]
+  },
+  {
+    "title": "How to handle background tasks properly in FastAPI without blocking the event loop",
+    "body": "In FastAPI, I want to send an email notification after an endpoint returns 200 OK. Should I use FastAPI's built-in `BackgroundTasks` or offload it to Celery/Redis queue for high traffic?",
+    "comments": [
+      "FastAPI BackgroundTasks run inside the same process worker. If the task is CPU heavy or slow, use Celery or ARQ instead.",
+      "If it's just a non-blocking async network call, FastAPI BackgroundTasks is lightweight and completely fine.",
+      "Remember that if the server crashes or restarts, pending in-memory BackgroundTasks will be lost."
+    ],
+    "tags": [
+      "python",
+      "fastapi",
+      "asyncio",
+      "background-tasks"
+    ]
+  },
+  {
+    "title": "FastAPI Dependency Injection with SQLAlchemy async session lifecycle",
+    "body": "I am creating an async database dependency using `AsyncSession` and `yield` in FastAPI. Sometimes database connections stay open and leak. What is the correct session scope pattern with `async_sessionmaker`?",
+    "comments": [
+      "Use async context manager inside your dependency: async with AsyncSessionLocal() as session: yield session.",
+      "Ensure you commit inside the route or handler, or handle rollback in an exception block inside the dependency.",
+      "Check your pool_size and max_overflow parameters in create_async_engine."
+    ],
+    "tags": [
+      "python",
+      "fastapi",
+      "sqlalchemy",
+      "asyncio"
+    ]
+  },
+  {
+    "title": "Python multiprocessing vs threading for CPU-bound image processing",
+    "body": "I am resizing thousands of high-resolution images. With Python's GIL, `threading` does not give multi-core speedup. Should I use `multiprocessing.Pool` or `concurrent.futures.ProcessPoolExecutor`?",
+    "comments": [
+      "ProcessPoolExecutor is modern and works nicely with future objects and context managers.",
+      "If your image library is Pillow (C-extensions), some parts actually release the GIL, but ProcessPool is still safer for CPU scaling.",
+      "Watch out for memory serialization overhead when passing large NumPy arrays between processes."
+    ],
+    "tags": [
+      "python",
+      "multiprocessing",
+      "multithreading",
+      "performance"
+    ]
+  },
+  {
+    "title": "Understanding Python decorators with arguments and preserving metadata",
+    "body": "When writing a custom caching decorator that takes a `ttl_seconds` argument, my decorated functions lose their original docstring and function name. How do I use `functools.wraps` correctly with nested wrapper functions?",
+    "comments": [
+      "You need three levels of functions: outer decorator accepting parameters, inner decorator accepting function, innermost wrapper accepting *args, **kwargs.",
+      "Apply @functools.wraps(func) on the innermost wrapper function to preserve __name__ and __doc__.",
+      "Look into functools.update_wrapper if you ever write class-based decorators."
+    ],
+    "tags": [
+      "python",
+      "decorators",
+      "functools"
+    ]
+  },
+  {
+    "title": "Python pandas SettingWithCopyWarning when updating slice of DataFrame",
+    "body": "I am filtering a DataFrame: `df_filtered = df[df['status'] == 'active']` and then assigning `df_filtered['processed'] = True`. Pandas gives `SettingWithCopyWarning`. Why does this happen and how to avoid it?",
+    "comments": [
+      "df[df['status'] == 'active'] creates a slice/view. Explicitly copy it: df_filtered = df[df['status'] == 'active'].copy().",
+      "Or use .loc directly on the original dataframe: df.loc[df['status'] == 'active', 'processed'] = True.",
+      "Pandas 2.x and 3.0 copy-on-write (CoW) feature will eliminate this ambiguity."
+    ],
+    "tags": [
+      "python",
+      "pandas",
+      "dataframe"
+    ]
+  },
+  {
+    "title": "Pandas merge vs concat vs join performance on million row DataFrames",
+    "body": "I have two DataFrames with 5 million rows each. What is the most memory-efficient and fastest way to join them on a common integer key without exhausting system RAM?",
+    "comments": [
+      "Sort both DataFrames by the join key beforehand or convert keys to categorized/int32 types.",
+      "Set the join key as the index on both frames and use df1.join(df2, how='inner').",
+      "If memory is tight, look into Polars or DuckDB as drop-in high-performance replacements."
+    ],
+    "tags": [
+      "python",
+      "pandas",
+      "performance",
+      "optimization"
+    ]
+  },
+  {
+    "title": "How to use Python typing TypeVar and ParamSpec for higher-order functions",
+    "body": "I want to create a generic retry wrapper in Python 3.10 and preserve the exact parameter signature and return type of the wrapped function in my IDE (VS Code / Pyance). How do I type-hint this properly?",
+    "comments": [
+      "Define P = ParamSpec('P') and R = TypeVar('R'). Your decorator takes Callable[P, R] and returns Callable[P, R].",
+      "ParamSpec was added in Python 3.10 (or typing_extensions for older versions).",
+      "Use Concatenate[P, ...] if your decorator injects or modifies arguments."
+    ],
+    "tags": [
+      "python",
+      "typing",
+      "generics",
+      "decorators"
+    ]
+  },
+  {
+    "title": "Memory leak when generating large CSV file with Python generator in memory",
+    "body": "My script streams 10 GB of data from an API and writes to a file, but memory usage continuously grows until Linux OOM kills the process. How can I debug object references and enforce garbage collection?",
+    "comments": [
+      "Check if you are appending rows to a global list or keeping closures alive inside your generator.",
+      "Use objgraph or tracemalloc to inspect which object types are accumulating in memory.",
+      "Call gc.collect() periodically if cyclical references are preventing immediate deallocation."
+    ],
+    "tags": [
+      "python",
+      "memory-leak",
+      "garbage-collection",
+      "optimization"
+    ]
+  },
+  {
+    "title": "JavaScript event loop: microtasks queue vs macrotasks order execution",
+    "body": "Can someone clarify why `Promise.resolve().then(...)` runs before `setTimeout(..., 0)`? How does the event loop prioritize process.nextTick, microtasks, and timer queues?",
+    "comments": [
+      "Microtasks (Promises, MutationObserver, nextTick in Node) run immediately after current synchronous script finishes and before any macrotask.",
+      "setTimeout enters the Timer macrotask queue, which is evaluated only after the microtask queue is empty.",
+      "In Node.js, process.nextTick runs even before Promise microtasks in the nextTickQueue."
+    ],
+    "tags": [
+      "javascript",
+      "event-loop",
+      "asynchronous",
+      "nodejs"
+    ]
+  },
+  {
+    "title": "Array.prototype.forEach does not wait for async/await callbacks",
+    "body": "I wrote `items.forEach(async (item) => { await saveToDb(item); }); console.log('Done');`. The 'Done' message prints immediately before database saves finish. How to execute async loops sequentially or concurrently?",
+    "comments": [
+      "forEach is synchronous and ignores promises returned by callback. Use `for...of` loop for sequential execution.",
+      "For concurrent execution with Promise.all, use `await Promise.all(items.map(async (item) => ...))`.",
+      "Be cautious with Promise.all if you have thousands of items; use p-limit to throttle concurrency."
+    ],
+    "tags": [
+      "javascript",
+      "async-await",
+      "promises",
+      "nodejs"
+    ]
+  },
+  {
+    "title": "TypeScript utility types: Difference between Pick, Omit, and Partial",
+    "body": "I have an existing `User` interface with 10 fields. For an update endpoint, all fields should be optional except `id`. How do I combine TypeScript utility types to express this without duplicating code?",
+    "comments": [
+      "You can combine them: `type UpdateUserDto = Partial<Omit<User, 'id'>> & Pick<User, 'id'>;`.",
+      "Or create a custom utility type `type MakeOptional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;`.",
+      "Make sure your tsconfig has strictNullChecks enabled for proper type safety."
+    ],
+    "tags": [
+      "typescript",
+      "generics",
+      "types"
+    ]
+  },
+  {
+    "title": "TypeScript discriminated unions for handling API response states",
+    "body": "How can I design a type-safe API result type in TypeScript that represents Loading, Success (with data), and Error (with error message), and allows automatic type narrowing in switch statements?",
+    "comments": [
+      "Use a common literal property like `status`: `{ status: 'loading' } | { status: 'success'; data: T } | { status: 'error'; error: string }`.",
+      "Inside a `switch (res.status)`, TypeScript compiler narrows the type automatically inside each case block.",
+      "Add an `assertNever(x: never)` helper in the default case for compile-time exhaustiveness checking."
+    ],
+    "tags": [
+      "typescript",
+      "types",
+      "api",
+      "design-patterns"
+    ]
+  },
+  {
+    "title": "Node.js stream backpressure: stream.write() returns false",
+    "body": "When piping large video files to client response in Express, memory spikes to 2GB. I noticed `write()` returns `false`. How do I pause readable stream and wait for `drain` event?",
+    "comments": [
+      "Use `pipeline(readable, writable, callback)` from 'stream/promises'. It manages backpressure and error handling automatically.",
+      "If writing manually, pause readable when write() returns false, and resume on writable.once('drain', ...).",
+      "Never ignore the return value of stream.write() when handling high-throughput data."
+    ],
+    "tags": [
+      "nodejs",
+      "streams",
+      "backpressure",
+      "performance"
+    ]
+  },
+  {
+    "title": "Troubleshooting memory leak in Node.js production service with heap snapshots",
+    "body": "Our Node.js API service memory grows linearly by 50MB per hour until PM2 restarts it. How can we take V8 heap dumps without impacting live production traffic, and analyze retained objects?",
+    "comments": [
+      "Run node with `--inspect` flag and connect via Chrome DevTools, or use `v8.writeHeapSnapshot()` triggered by an internal admin endpoint.",
+      "Compare two snapshots taken 30 minutes apart: look at Delta in Shallow Size and Retained Size.",
+      "Common culprits: unclosed EventEmitter listeners, growing global caching Maps without TTL, or uncaught promises in closures."
+    ],
+    "tags": [
+      "nodejs",
+      "memory-leak",
+      "v8",
+      "debugging"
+    ]
+  },
+  {
+    "title": "Express.js async error handling middleware not catching rejected promises",
+    "body": "In Express 4, throwing an Error inside an `async (req, res)` route causes an unhandled promise rejection rather than being caught by `app.use((err, req, res, next) => ...)`. How to fix this cleanly?",
+    "comments": [
+      "Express 4 router does not catch returned rejected promises. Wrap routes with an asyncHandler helper: (fn) => (req, res, next) => fn(req, res, next).catch(next).",
+      "Or install the package `express-async-errors` which monkey-patches Layer.handle.",
+      "Express 5 natively supports async route handlers and catches rejected promises automatically."
+    ],
+    "tags": [
+      "nodejs",
+      "express",
+      "error-handling",
+      "async-await"
+    ]
+  },
+  {
+    "title": "React useEffect dependency array causing infinite re-render loop",
+    "body": "My component fetches user profile inside `useEffect`. Because I pass an object prop into the dependency array, `useEffect` triggers on every single render. How should I stabilize object dependencies?",
+    "comments": [
+      "Extract primitive properties into dependencies (e.g. user.id instead of user object).",
+      "If the parent passes an inline object, wrap that object with `useMemo` in parent, or memoize inside the effect.",
+      "Use React ESLint exhaustive-deps plugin to warn about unstable references."
+    ],
+    "tags": [
+      "reactjs",
+      "hooks",
+      "useeffect",
+      "javascript"
+    ]
+  },
+  {
+    "title": "When to use useMemo and useCallback in React: Avoid premature optimization",
+    "body": "Should I wrap every function in `useCallback` and every calculated value in `useMemo`? What is the actual performance overhead of React memoization hooks?",
+    "comments": [
+      "useCallback/useMemo has a memory and computation cost (array allocation + dependency comparisons).",
+      "Only use useCallback when passing callbacks to React.memo child components or as effect dependencies.",
+      "Use useMemo only for expensive computations (e.g. filtering thousands of items) or referential equality stabilization."
+    ],
+    "tags": [
+      "reactjs",
+      "hooks",
+      "performance",
+      "optimization"
+    ]
+  },
+  {
+    "title": "React state update not reflecting immediately after setState call",
+    "body": "In a form submission handler: `setCount(count + 1); console.log(count);`. The log still prints the old count value. Why is state update asynchronous and how can I access the updated value?",
+    "comments": [
+      "State updates in React are queued and batched; count in the current render scope is an immutable snapshot.",
+      "If next calculation depends on updated value, use the functional update form: setCount(prev => prev + 1).",
+      "To react to changes after re-render, use a separate useEffect([count])."
+    ],
+    "tags": [
+      "reactjs",
+      "state-management",
+      "hooks",
+      "javascript"
+    ]
+  },
+  {
+    "title": "Next.js App Router: Server Components vs Client Components boundary rules",
+    "body": "When building an e-commerce page in Next.js 14, where should I draw the line between Server Components (`page.tsx`) and Client Components (`'use client'`)? How do I pass data across boundaries?",
+    "comments": [
+      "Keep data fetching, database queries, and heavy libraries on the server side (Server Components).",
+      "Use 'use client' only at the leaves of the component tree for interactivity (onClick, onChange, hooks like useState).",
+      "You can pass Server Components as children to Client Components without converting the children into client components."
+    ],
+    "tags": [
+      "reactjs",
+      "nextjs",
+      "frontend",
+      "web-development"
+    ]
+  },
+  {
+    "title": "PostgreSQL slow query performance despite B-tree index on composite columns",
+    "body": "I have an index on `(created_at, status, user_id)`. When running `SELECT * FROM orders WHERE status = 'pending' AND user_id = 123`, Postgres does a sequential table scan. Why isn't the index used?",
+    "comments": [
+      "B-tree composite indexes must follow leftmost prefix rule. Because created_at is first and not in WHERE clause, index cannot be traversed.",
+      "Reorder your index columns to `(status, user_id, created_at)` or create a partial index if status='pending' is a small percentage.",
+      "Run EXPLAIN (ANALYZE, BUFFERS) to confirm index scan vs seq scan costs."
+    ],
+    "tags": [
+      "sql",
+      "postgresql",
+      "indexing",
+      "performance"
+    ]
+  },
+  {
+    "title": "PostgreSQL connection pool exhaustion: Max clients reached with PgBouncer",
+    "body": "During flash sales, our backend gives `FATAL: remaining connection slots are reserved for non-replication superuser connections`. We run 10 pods connected to PostgreSQL. How should we configure PgBouncer?",
+    "comments": [
+      "Switch PgBouncer pool_mode from session to transaction mode for microservices.",
+      "Ensure application frameworks don't use prepared statements or LISTEN/NOTIFY in transaction pooling mode without proper settings.",
+      "Size PostgreSQL max_connections to 100-200 and let PgBouncer multiplex thousands of client connections into this pool."
+    ],
+    "tags": [
+      "sql",
+      "postgresql",
+      "pgbouncer",
+      "database"
+    ]
+  },
+  {
+    "title": "Understanding PostgreSQL table bloat and autovacuum tuning",
+    "body": "Our PostgreSQL database size grew from 50GB to 200GB despite only holding 10M rows. `pg_stat_user_tables` shows high `n_dead_tup`. How do we tune autovacuum parameters to prevent dead tuple accumulation?",
+    "comments": [
+      "Lower `autovacuum_vacuum_scale_factor` from 0.2 to 0.05 and `autovacuum_vacuum_cost_limit` to 1000 for aggressive cleanup.",
+      "Check for long-running transactions or uncommitted idle transactions blocking vacuum from cleaning old row versions.",
+      "Use `pg_repack` to reclaim disk space back to OS without holding an exclusive table lock."
+    ],
+    "tags": [
+      "sql",
+      "postgresql",
+      "database",
+      "performance"
+    ]
+  },
+  {
+    "title": "MySQL deadlock on concurrent INSERT ... ON DUPLICATE KEY UPDATE",
+    "body": "Under high load, concurrent workers inserting into an inventory table encounter `Deadlock found when trying to get lock; try restarting transaction`. Why does InnoDB lock gap locks on duplicate checks?",
+    "comments": [
+      "InnoDB takes gap locks and next-key locks when validating unique constraints during concurrent inserts.",
+      "Sort your batch insert rows by primary key before executing to ensure uniform lock acquisition order.",
+      "Implement exponential backoff retry logic in your application code for MySQL error 1213."
+    ],
+    "tags": [
+      "sql",
+      "mysql",
+      "innodb",
+      "concurrency"
+    ]
+  },
+  {
+    "title": "Redis caching strategies: Cache-Aside vs Write-Through vs Write-Behind",
+    "body": "We are designing a low-latency user profile cache. What are the trade-offs between Cache-Aside pattern with TTL versus Write-Through and Write-Behind with message queue synchronization?",
+    "comments": [
+      "Cache-Aside is the most resilient: application queries Redis; on cache miss, reads DB and repopulates Redis with TTL.",
+      "Write-Through guarantees cache consistency on every update but adds write latency to every DB write.",
+      "Beware of Cache Stampede (Thundering Herd) when a key expires; use distributed locks (Redlock) or stale-while-revalidate."
+    ],
+    "tags": [
+      "redis",
+      "caching",
+      "system-design",
+      "database"
+    ]
+  },
+  {
+    "title": "Redis Pub/Sub vs Redis Streams: Message persistence and consumer groups",
+    "body": "We need an event streaming pipeline. We currently use Redis `PUBLISH` and `SUBSCRIBE`, but when subscriber is restarting, messages are dropped. Will migrating to Redis Streams solve this?",
+    "comments": [
+      "Yes! Redis Pub/Sub is fire-and-forget; if no clients are listening, messages vanish immediately.",
+      "Redis Streams (XADD, XREADGROUP) provides persistent append-only logs, consumer groups, offsets, and ACK mechanisms.",
+      "You can use XPENDING and XCLAIM to reassign unacknowledged messages after worker crash."
+    ],
+    "tags": [
+      "redis",
+      "pubsub",
+      "message-queue",
+      "architecture"
+    ]
+  },
+  {
+    "title": "Optimizing Docker multi-stage build cache for Node.js and TypeScript apps",
+    "body": "Every time I change a single line in `src/`, `docker build` re-runs `npm install`, taking 3 minutes. How should I order Dockerfile instructions to leverage Docker layer caching?",
+    "comments": [
+      "Copy `package.json` and `package-lock.json` before `RUN npm ci`. Only copy `src/` after dependencies are installed.",
+      "Use multi-stage builds: separate build stage (with devDependencies + TypeScript compiler) from production runtime stage.",
+      "Use `.dockerignore` to exclude node_modules, .git, and build artifacts from build context."
+    ],
+    "tags": [
+      "docker",
+      "devops",
+      "nodejs",
+      "caching"
+    ]
+  },
+  {
+    "title": "Docker container exits immediately with code 137 (OOMKilled)",
+    "body": "Our containerized Python data processor crashes silently after 10 minutes. `docker inspect` shows `ExitCode: 137` and `OOMKilled: true`. How do we debug and allocate memory limits properly?",
+    "comments": [
+      "Exit code 137 means the process received SIGKILL (128 + 9) from the Linux kernel Out-Of-Memory killer.",
+      "Check `docker stats` during runtime to monitor peak memory usage before crash.",
+      "Increase container memory limit with `-m 4g --memory-swap 4g` or stream processing in smaller batch chunks."
+    ],
+    "tags": [
+      "docker",
+      "containers",
+      "linux",
+      "devops"
+    ]
+  },
+  {
+    "title": "Docker compose inter-container networking: Connection refused on localhost",
+    "body": "My frontend container cannot reach backend container using `http://localhost:8000`. Both services are defined in `docker-compose.yml`. What is the correct way for containers to communicate?",
+    "comments": [
+      "Within Docker Compose network, 'localhost' refers to the container itself, not the host machine.",
+      "Use the compose service name as the hostname: `http://backend:8000`.",
+      "Make sure the backend server binds to 0.0.0.0, not 127.0.0.1 inside its container."
+    ],
+    "tags": [
+      "docker",
+      "docker-compose",
+      "networking"
+    ]
+  },
+  {
+    "title": "Kubernetes Pod stuck in CrashLoopBackOff with Exit Code 137 or 1",
+    "body": "After deploying a new microservice helm chart, pods immediately enter `CrashLoopBackOff`. `kubectl logs` is empty. How do I inspect why the container failed before starting?",
+    "comments": [
+      "Use `kubectl describe pod <pod-name>` and inspect the Last State: Reason, Exit Code, and Events section.",
+      "Run `kubectl logs <pod-name> --previous` to see stdout/stderr logs from the previous terminated instance.",
+      "Check if readiness or liveness probes are failing due to wrong port or initial delay being too short."
+    ],
+    "tags": [
+      "kubernetes",
+      "docker",
+      "devops",
+      "debugging"
+    ]
+  },
+  {
+    "title": "Kubernetes Horizontal Pod Autoscaler (HPA) with custom Prometheus metrics",
+    "body": "Our API scaling bottleneck is incoming RabbitMQ queue depth rather than CPU/Memory. How can we configure Kubernetes HPA to scale pods based on custom metrics from Prometheus?",
+    "comments": [
+      "Deploy the Prometheus Adapter (k8s-prometheus-adapter) to expose custom metrics to the APIServer.",
+      "Define an HPA manifest with `type: External` or `type: Pods` referencing your metric name.",
+      "Set appropriate scale-down stabilization window to avoid pod thrashing (flapping)."
+    ],
+    "tags": [
+      "kubernetes",
+      "prometheus",
+      "scaling",
+      "devops"
+    ]
+  },
+  {
+    "title": "Nginx Ingress 504 Gateway Timeout on long-running report generation requests",
+    "body": "Users downloading big export reports experience `504 Gateway Time-out` after exactly 60 seconds when requests go through Nginx Ingress Controller. Which annotations must be updated?",
+    "comments": [
+      "Add annotation `nginx.ingress.kubernetes.io/proxy-read-timeout: '300'` to your Ingress resource.",
+      "Also check `proxy-connect-timeout` and `proxy-send-timeout`.",
+      "For long operations (>1 min), consider switching to asynchronous processing with webhooks or Polling."
+    ],
+    "tags": [
+      "kubernetes",
+      "nginx",
+      "ingress",
+      "networking"
+    ]
+  },
+  {
+    "title": "How to resolve Git merge conflict during interactive rebase with detached HEAD",
+    "body": "I ran `git rebase -i main` and hit conflicts. Terminal says `HEAD detached at a1b2c3d`. How do I resolve file conflicts, stage changes, and finish the rebase without losing my branch?",
+    "comments": [
+      "Edit conflicted files, remove conflict markers, then run `git add <file>` followed by `git rebase --continue`.",
+      "Never use `git commit` during a rebase unless explicitly asked; use `git rebase --continue`.",
+      "If things go wrong, you can always safely abort with `git rebase --abort` to return to your original branch state."
+    ],
+    "tags": [
+      "git",
+      "merge",
+      "rebase",
+      "version-control"
+    ]
+  },
+  {
+    "title": "How to undo last git commit without losing staged changes or local modifications",
+    "body": "I accidentally committed unfinished work to main branch with `git commit -m 'wip'`. I want to undo the commit, but keep all modified code in my working directory.",
+    "comments": [
+      "Run `git reset --soft HEAD~1`. This removes the commit but leaves changes staged in index.",
+      "If you want changes unstaged in working directory, use `git reset HEAD~1` (default mixed reset).",
+      "Avoid `git reset --hard` as it will permanently discard all your uncommitted edits."
+    ],
+    "tags": [
+      "git",
+      "version-control"
+    ]
+  },
+  {
+    "title": "Git submodules vs Git subtrees for managing shared core libraries across repos",
+    "body": "Our team has a common utilities repository used by 5 microservices. Should we integrate it using Git Submodules or Git Subtree? What are the collaboration pros and cons?",
+    "comments": [
+      "Submodules store a commit pointer; developers must remember `git submodule update --init --recursive`.",
+      "Subtrees embed the actual files directly in the host repo, eliminating setup friction for consumers.",
+      "If third-party developers clone your repo often, subtrees are much less error-prone."
+    ],
+    "tags": [
+      "git",
+      "architecture",
+      "version-control"
+    ]
+  },
+  {
+    "title": "CORS error: Response to preflight request doesn't pass access control check",
+    "body": "My React frontend on `http://localhost:3000` cannot call Spring Boot API on `http://localhost:8080`. Browser console shows CORS preflight OPTIONS request failed with 403 Forbidden.",
+    "comments": [
+      "Configure CORS in Spring Security config: authorizeHttpRequests().requestMatchers(HttpMethod.OPTIONS).permitAll().",
+      "Set Access-Control-Allow-Origin: http://localhost:3000 (do not use '*' if Access-Control-Allow-Credentials is true).",
+      "Verify Access-Control-Allow-Headers includes Authorization and Content-Type."
+    ],
+    "tags": [
+      "security",
+      "cors",
+      "spring-boot",
+      "reactjs",
+      "networking"
+    ]
+  },
+  {
+    "title": "JWT refresh token rotation and secure storage: HttpOnly cookie vs LocalStorage",
+    "body": "What is the industry standard for storing JSON Web Tokens? If access token is stored in memory and refresh token in HttpOnly cookie, how do we implement automatic token rotation securely?",
+    "comments": [
+      "Store refresh token in HttpOnly, Secure, SameSite=Strict cookie to prevent XSS attacks.",
+      "Keep short-lived access token (5-15 min) in memory inside frontend application state.",
+      "On refresh request, issue a new access token AND rotate the refresh token; revoke family if reused."
+    ],
+    "tags": [
+      "security",
+      "jwt",
+      "authentication",
+      "web-development"
+    ]
+  },
+  {
+    "title": "Nginx reverse proxy WebSocket connection upgrade configuration",
+    "body": "When routing Socket.io or ws traffic through Nginx reverse proxy, client connections fail with error: `WebSocket connection failed: 400 Bad Request`. What proxy headers are missing?",
+    "comments": [
+      "You must pass: `proxy_set_header Upgrade $http_upgrade;` and `proxy_set_header Connection 'upgrade';`.",
+      "Set `proxy_http_version 1.1;` since HTTP/1.0 does not support protocol switching.",
+      "Increase `proxy_read_timeout 86400s;` so idle WebSocket connections aren't dropped prematurely."
+    ],
+    "tags": [
+      "nginx",
+      "websocket",
+      "networking",
+      "devops"
+    ]
+  },
+  {
+    "title": "Spring Boot @Transactional not rolling back on custom checked Exception",
+    "body": "In my `@Service` class, when a business validation fails, I throw `OrderProcessingException extends Exception`. However, database inserts before the throw are still committed! Why?",
+    "comments": [
+      "By default, Spring @Transactional only rolls back on unchecked exceptions (RuntimeException and Error).",
+      "Add rollbackFor: `@Transactional(rollbackFor = Exception.class)` on your service method.",
+      "Alternatively, make your custom exception inherit from RuntimeException."
+    ],
+    "tags": [
+      "java",
+      "spring-boot",
+      "jpa",
+      "transactions"
+    ]
+  },
+  {
+    "title": "Hibernate LazyInitializationException: could not initialize proxy - no Session",
+    "body": "When rendering a list of orders in Jackson JSON serializer, Hibernate throws `LazyInitializationException` when accessing `order.getItems()`. How to handle lazy relationships cleanly in Spring Boot?",
+    "comments": [
+      "Use DTO projection with JPQL JOIN FETCH or EntityGraph to load required relationships in a single query.",
+      "Do not enable `spring.jpa.open-in-view=true` in production as it leads to connection pool starvation.",
+      "Map lazy entity fields to dedicated response DTOs inside transaction boundary."
+    ],
+    "tags": [
+      "java",
+      "spring-boot",
+      "hibernate",
+      "jpa"
+    ]
+  },
+  {
+    "title": "JVM Garbage Collection pause times: Tuning G1GC for low latency Spring microservices",
+    "body": "Our Java API service experiences intermittent 500ms latency spikes caused by Stop-The-World GC pauses. How do we configure JVM flags for G1GC or switch to ZGC?",
+    "comments": [
+      "Set `-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:G1ReservePercent=15`.",
+      "In Java 17+, try ZGC: `-XX:+UseZGC -XX:+ZGenerational` which brings pauses down to sub-millisecond.",
+      "Profile allocation rates with JProfiler or Async-Profiler to eliminate object churn in hot loops."
+    ],
+    "tags": [
+      "java",
+      "jvm",
+      "performance",
+      "garbage-collection"
+    ]
+  },
+  {
+    "title": "Go goroutine leak caused by unbuffered channel and missing context cancellation",
+    "body": "We noticed our Go microservice memory and goroutine count steadily increases over days. Profiling with pprof shows thousands of goroutines blocked on channel send `ch <- result`. How to avoid this?",
+    "comments": [
+      "Always use a buffered channel if receiver might return early before sender writes: ch := make(chan Result, 1).",
+      "Listen to context.Done(): select { case ch <- result: case <-ctx.Done(): return }.",
+      "Use goleak (go.uber.org/goleak) in unit tests to catch leaking goroutines automatically."
+    ],
+    "tags": [
+      "golang",
+      "goroutines",
+      "concurrency",
+      "memory-leak"
+    ]
+  },
+  {
+    "title": "Understanding Go nil interface vs nil concrete pointer value bug",
+    "body": "Why does `var err *MyCustomError = nil; var i error = err; if i != nil` evaluate to true in Go? This subtle behavior caused unexpected errors in our service.",
+    "comments": [
+      "An interface in Go is a tuple of (type, value). Here type is *MyCustomError and value is nil.",
+      "An interface is only nil if both type and value are nil. Since type is non-nil, i != nil is true.",
+      "Never declare concrete error pointer variables; always return nil directly: return nil."
+    ],
+    "tags": [
+      "golang",
+      "types",
+      "best-practices"
+    ]
+  },
+  {
+    "title": "Graceful shutdown in Go HTTP server with Gin framework",
+    "body": "When deploying new Kubernetes pods, in-flight HTTP requests receive connection reset errors. How do I implement graceful shutdown in Go using `http.Server.Shutdown()` with SIGINT/SIGTERM?",
+    "comments": [
+      "Trap signals using `signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)`.",
+      "Call `server.Shutdown(ctx)` with a timeout context (e.g. 10s) to wait for active connections to finish.",
+      "Add preStop hook with `sleep 5` in your Kubernetes container spec to allow endpoints propagation."
+    ],
+    "tags": [
+      "golang",
+      "gin",
+      "kubernetes",
+      "http"
+    ]
+  },
+  {
+    "title": "Rust borrow checker: cannot borrow `*self` as mutable more than once at a time",
+    "body": "I am writing a graph data structure in Rust. When iterating over nodes with `for node in &mut self.nodes`, calling another helper `self.update_edge()` causes E0499. How can I restructure this without RefCell?",
+    "comments": [
+      "Split borrowing: borrow only the fields you need instead of entire `self` inside the method.",
+      "Store indices instead of references, or collect indices into a Vec before iterating.",
+      "Consider arena allocators like `petgraph` or generational indexes for complex graphs."
+    ],
+    "tags": [
+      "rust",
+      "ownership",
+      "borrow-checker"
+    ]
+  },
+  {
+    "title": "Async Rust runtime selection: Tokio vs smol vs async-std in 2024",
+    "body": "We are starting a high-throughput network proxy in Rust. Which async runtime has the best ecosystem support for HTTP servers (Axum), metrics, and thread pool scaling?",
+    "comments": [
+      "Tokio is the de facto industry standard; Axum, Hyper, Reqwest, and Tonic all build directly on it.",
+      "smol is great for lightweight embedded or minimal dependencies, but smaller third-party ecosystem.",
+      "Choose Tokio with multi-thread scheduler for production backend services."
+    ],
+    "tags": [
+      "rust",
+      "async-await",
+      "tokio",
+      "concurrency"
+    ]
+  },
+  {
+    "title": "Solving GraphQL N+1 query problem using DataLoader pattern in backend",
+    "body": "In our GraphQL API, fetching 50 posts and their authors executes 1 query for posts and 50 separate queries for authors (N+1 problem). How does DataLoader batch and cache these lookups?",
+    "comments": [
+      "DataLoader collects individual ID requests within a single tick of the event loop and passes them to a batch function.",
+      "Your batch function runs one `SELECT * FROM users WHERE id IN (...)` and maps results back to keys.",
+      "Make sure you instantiate a new DataLoader per HTTP request to avoid cross-user caching bugs."
+    ],
+    "tags": [
+      "graphql",
+      "api",
+      "database",
+      "performance"
+    ]
+  },
+  {
+    "title": "Linux file descriptor exhaustion: ulimit too many open files error on WebSocket server",
+    "body": "When our Node.js and Go WebSocket gateway hits 1024 concurrent connections, Linux rejects new sockets with `EMFILE: too many open files`. Which system settings need to be tuned?",
+    "comments": [
+      "Check current limit with `ulimit -n`. Increase it in `/etc/security/limits.conf` for your user: `nofile 65535`.",
+      "If running under systemd, set `LimitNOFILE=65535` in the service unit file.",
+      "Also check sysctl setting `fs.file-max` and increase if necessary for high concurrency."
+    ],
+    "tags": [
+      "linux",
+      "networking",
+      "websocket",
+      "performance"
+    ]
+  },
+  {
+    "title": "Systemd service automatic restart configuration on non-zero failure exit code",
+    "body": "I am deploying a Python background daemon as a systemd service. I want systemd to automatically restart the service if it crashes with an uncaught exception, but not restart if stopped intentionally. What is the recommended service configuration?",
+    "comments": [
+      "Use `Restart=on-failure` in the `[Service]` section. It restarts on non-zero exit codes, SIGABRT, and SIGSEGV, but not on clean exit 0 or manual systemctl stop.",
+      "Add `RestartSec=5s` to prevent fast crashing loops from overloading the CPU.",
+      "Add `StartLimitIntervalSec=60s` and `StartLimitBurst=5` to prevent infinite restart storms if there is a permanent configuration bug."
+    ],
+    "tags": [
+      "linux",
+      "devops",
+      "systemd",
+      "python"
+    ]
+  }
+]
